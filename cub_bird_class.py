@@ -99,17 +99,20 @@ def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=Fa
                 act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
-                for key in act_dict:
-                    if act_dict[key][0] > confidence:
-                        act_dict[key] = [confidence, inputs, labels]
-                        break 
+
+                max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
+                max_key = list(act_dict.keys())[max_idx]
+
+                if act_dict[max_key][0] > confidence:
+                    act_dict[max_key] = [confidence, inputs, labels]
+
         else:
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [i, inputs, labels]
                 count_key += 1
 
     if print_f:
-        print('largest uncertainties', [act_dict[key][0] for key in act_dict])
+        print('smallest confidences:', [act_dict[key][0] for key in act_dict])
     active_data = []
     active_labels = []
     for key in act_dict:
