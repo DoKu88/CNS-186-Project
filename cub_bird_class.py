@@ -22,22 +22,23 @@ def imshow(img):
 
 def setup_database():
     # Set up dataset and classes
-    transform = transforms.Compose(
+    transform_train = transforms.Compose(
         [transforms.Resize((400,400), interpolation=Image.NEAREST),
          transforms.RandomHorizontalFlip(),
          transforms.RandomRotation(15),
          transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    data_dir = '../cub_birds_data/'
-    dataSet = torchvision.datasets.ImageFolder(root=data_dir+'images_aug1', transform=transform)
+    transform_val_test = transforms.Compose(
+         [transforms.Resize((400,400), interpolation=Image.NEAREST),
+          transforms.ToTensor(),
+          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    num_train = int(len(dataSet) * .7)
-    num_val = int((len(dataSet) - num_train) / 2)
-    num_test = len(dataSet) - num_train - num_val
+    data_dir = "/home/memo/Documents/senior/Winter/CNS_186/vision_project/CUB_200_2011/CUB_200_2011"
 
-    trainSet, val_testSetTmp = torch.utils.data.random_split(dataSet, [int(num_train), int(num_val + num_test)])
-    valSet, testSet = torch.utils.data.random_split(val_testSetTmp, [int(num_val), int(num_test)])
+    dataSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_aug1', transform=transform_train)
+    valSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_val', transform=transform_val_test)
+    testSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_test', transform=transform_val_test)
 
     trainloader = torch.utils.data.DataLoader(dataSet, batch_size=8,
                                               shuffle=True, num_workers=2)
@@ -46,18 +47,23 @@ def setup_database():
     testloader = torch.utils.data.DataLoader(testSet, batch_size=8,
                                              shuffle=True, num_workers=2)
 
-    f = open(data_dir + "lists/classes.txt", "r")
     classes = []
+    f = open(data_dir + "/classes.txt", "r")
+    classes = []
+    counter = 1
     for x in f:
-      classes.append(x[4:-1])
+      classes.append(x[(len(str(counter)) +1):-1])
+      counter += 1
+    f.close()
 
     print(len(dataSet))
-    print(len(trainSet))
+    print(len(valSet))
+    print(len(testSet))
     print('trainloader length: ', len(trainloader.dataset))
     print('valloader length: ', len(valloader.dataset))
     print('testloader length: ', len(testloader.dataset))
 
-    return (trainSet, trainloader, valloader, testloader, classes)
+    return (dataSet, trainloader, valloader, testloader, classes)
 
 # same uncertainty measure as seen in that medium post
 # uncertainty = most confident - least confident
@@ -151,7 +157,8 @@ def test_acc(valloader, classes, num_classes):
     class_total = list(0. for i in range(num_classes))
     with torch.no_grad():
         # dataiter = iter(valloader)
-        for data in valloader:
+        #for data in valloader:
+        for i, data in enumerate(valloader, 0):
             images, labels = [d.to(device) for d in data] # data
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
@@ -170,7 +177,8 @@ def test_acc(valloader, classes, num_classes):
                 class_total[label] += 1
 
     accuracy = 100 * correct / total
-    print('Accuracy of the network on the %d test images: %d %%' % (len(valloader),
+    print('total images looked at:', total)
+    print('Accuracy of the network on the %d test images: %d %%' % (len(valloader.dataset),
         100 * correct / total))
 
     class_percentage = []
@@ -210,14 +218,14 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
 
 loss = 1
-training_epochs = 2
+training_epochs = 350
 num_epoch = 0
 losses = []
 accuracies = []
 saveTime = time.time()
 
 # let's train our model --------------------------------------------------------------------------------------------
-while loss > 0.2 and num_epoch < training_epochs:
+while loss > 0.15 and num_epoch < training_epochs:
     print_f = False
     if num_epoch % 20 == 0:
         print('Num_epoch: ', num_epoch)
@@ -227,16 +235,16 @@ while loss > 0.2 and num_epoch < training_epochs:
         accuracy, class_correct, class_total, class_percentage = test_acc(valloader, classes, num_classes)
         accuracies.append(accuracy)
         print('Class Totals:', class_total)
-        class_correct = np.asarray(class_correct)
-        class_total = np.asarray(class_total)
+        #class_correct = np.asarray(class_correct)
+        #class_total = np.asarray(class_total)
         class_percentage = np.asarray(class_percentage)
 
-        class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
-        class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
+        #class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
+        #class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
         class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
 
-        np.save(class_correctTitle, class_correct)
-        np.save(class_totalTitle, class_total)
+        #np.save(class_correctTitle, class_correct)
+        #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
     data_act, labels_act = get_active_batches(trainloader, net, 5, print_f)
@@ -252,17 +260,18 @@ print('Epochs:', num_epoch)
 PATH = './cub_birds_net_' + str(saveTime) + '.pth'
 torch.save(net.state_dict(), PATH)
 
-# save our losses and accuracies
+# save our losses and accuracies -----------------------------------------------------------------------------------
 losses = np.asarray(losses)
 lossesTitle = 'losses_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
 np.save(lossesTitle, losses)
 
 accuracies = np.asarray(accuracies)
-accuraciesTitle = 'accurcies_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
+accuraciesTitle = 'accuracies_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
 np.save(accuraciesTitle, accuracies)
 # ------------------------------------------------------------------------------------------------------------------
 
 # Get our test accuracy --------------------------------------------------------------------------------------------
+print('Final Test on Test Set ==================================================')
 accuracy, class_correct, class_total, class_percentage = test_acc(testloader, classes, num_classes)
 class_correct = np.asarray(class_correct)
 class_total = np.asarray(class_total)

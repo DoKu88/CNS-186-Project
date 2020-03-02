@@ -1,7 +1,7 @@
 # CNS-186-Project
 ## Active Learning for Image Classification
 For this project, we are going to train a Resnet-18 Architecture to classify
-images from the Caltech-UCSD Birds 200 (CUB-200) dataset. 
+images from the Caltech-UCSD Birds 200 2011 (CUB-200) dataset. 
 
 With this, we are going to train using both active and standard supervised 
 learning techniques to compare how these differ for image classification. 
