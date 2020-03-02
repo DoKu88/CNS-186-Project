@@ -10,4 +10,8 @@ to train on for our active learning model affects our model and if we
 can incorporate hierarchical data about the image classes (bird species) to
 improve our classification. 
 
-
+Note: Didn't put Torch version to use in Requirements.txt, since you already
+may have something set up. Please check out the following detailed links about
+what version you should use of torch with your cuda version:
+https://pytorch.org/get-started/previous-versions/
+https://pytorch.org/

@@ -1,0 +1,12 @@
+README.md
+setup.py
+CNS-186-Project/__init__.py
+CNS-186-Project/cub_bird_class.py
+CNS-186-Project/data_aug.py
+CNS-186-Project/data_split.py
+CNS-186-Project/file_mover.py
+CNS_186_Project.egg-info/PKG-INFO
+CNS_186_Project.egg-info/SOURCES.txt
+CNS_186_Project.egg-info/dependency_links.txt
+CNS_186_Project.egg-info/not-zip-safe
+CNS_186_Project.egg-info/top_level.txt
