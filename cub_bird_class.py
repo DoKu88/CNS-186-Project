@@ -24,11 +24,13 @@ def setup_database():
     # Set up dataset and classes
     transform = transforms.Compose(
         [transforms.Resize((400,400), interpolation=Image.NEAREST),
+         transforms.RandomHorizontalFlip(),
+         transforms.RandomRotation(15),
          transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     data_dir = '../cub_birds_data/'
-    dataSet = torchvision.datasets.ImageFolder(root=data_dir+'images', transform=transform)
+    dataSet = torchvision.datasets.ImageFolder(root=data_dir+'images_aug1', transform=transform)
 
     num_train = int(len(dataSet) * .7)
     num_val = int((len(dataSet) - num_train) / 2)
@@ -49,9 +51,11 @@ def setup_database():
     for x in f:
       classes.append(x[4:-1])
 
-    print(type(dataSet))
-    print(type(trainSet))
-    print(type(trainloader))
+    print(len(dataSet))
+    print(len(trainSet))
+    print('trainloader length: ', len(trainloader.dataset))
+    print('valloader length: ', len(valloader.dataset))
+    print('testloader length: ', len(testloader.dataset))
 
     return (trainSet, trainloader, valloader, testloader, classes)
 
@@ -158,7 +162,6 @@ def test_acc(valloader, classes, num_classes):
 
             for i in range(len(labels)):
                 if len(labels) == 1:
-                    #import pdb; pdb.set_trace()
                     label = labels[i]
                     class_correct[label] += c.item()
                 else:
@@ -170,9 +173,15 @@ def test_acc(valloader, classes, num_classes):
     print('Accuracy of the network on the %d test images: %d %%' % (len(valloader),
         100 * correct / total))
 
+    class_percentage = []
     for i in range(num_classes):
-        print('Accuracy of %5s : %4d %%' % (
-            classes[i], 100 * class_correct[i] / class_total[i]))
+        if class_total[i] == 0:
+            print('Accuracy of %5s : 0 Examples' % (classes[i]))
+            class_percentage.append(-1)
+        else:
+            print('Accuracy of %5s : %4d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
+            class_percentage.append(100 * class_correct[i] / class_total[i])
+
 
     class_percentage = [class_correct[i] / class_total[i] for i in range(num_classes)]
 
@@ -201,7 +210,7 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
 
 loss = 1
-training_epochs = 350
+training_epochs = 2
 num_epoch = 0
 losses = []
 accuracies = []
@@ -217,6 +226,7 @@ while loss > 0.2 and num_epoch < training_epochs:
         # Test on validation set
         accuracy, class_correct, class_total, class_percentage = test_acc(valloader, classes, num_classes)
         accuracies.append(accuracy)
+        print('Class Totals:', class_total)
         class_correct = np.asarray(class_correct)
         class_total = np.asarray(class_total)
         class_percentage = np.asarray(class_percentage)
