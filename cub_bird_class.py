@@ -227,7 +227,7 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 loss = 1
 training_epochs = 350
 num_epoch = 0
-num_batches = 47 # we have 3760 training, want 10% so 376 examples, 8 per batch so 
+num_batches = 47 # we have 3760 training, want 10% so 376 examples, 8 per batch so 47 * 8 = 376
 losses = []
 accuracies = []
 saveTime = time.time()
@@ -255,7 +255,7 @@ while loss > 0.15 and num_epoch < training_epochs:
         #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
-    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=True)
+    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=False)
     loss = train(net, data_act, labels_act, print_f)
     #loss = default_training(net, trainloader, 1)
     losses.append(loss)
