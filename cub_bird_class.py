@@ -70,7 +70,7 @@ def setup_database():
 # we want to put the smallest uncertainties in our training
 # because that means that that sample is not well defined
 
-def get_active_batches(trainloader, net, num_batches=1, print_f=False):
+def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=False):
     flag = True
     #data_active = None
     #labels_active = None
@@ -86,19 +86,24 @@ def get_active_batches(trainloader, net, num_batches=1, print_f=False):
         outputs_cpu = outputs.cpu()
         outputs_np = outputs_cpu.detach().numpy()
 
-        max_batch = 0
-        min_batch = 0
-        for out in outputs_np:
-            max_batch += max(out)
-            min_batch += min(out)
+        if not random:
+            max_batch = 0
+            min_batch = 0
+            for out in outputs_np:
+                max_batch += max(out)
+                min_batch += min(out)
 
-        if len(act_dict.keys()) < num_batches:
-            act_dict[count_key] = [max_batch - min_batch, inputs, labels]
-            count_key += 1
+            if len(act_dict.keys()) < num_batches:
+                act_dict[count_key] = [max_batch - min_batch, inputs, labels]
+                count_key += 1
+            else:
+                for key in act_dict:
+                    if act_dict[key][0] > max_batch - min_batch:
+                        act_dict[key] = [max_batch - min_batch, inputs, labels]
         else:
-            for key in act_dict:
-                if act_dict[key][0] > max_batch - min_batch:
-                    act_dict[key] = [max_batch - min_batch, inputs, labels]
+            if len(act_dict.keys()) < num_batches:
+                act_dict[count_key] = [i, inputs, labels]
+                count_key += 1
 
     if print_f:
         print('largest uncertainties', [act_dict[key][0] for key in act_dict])
@@ -149,6 +154,8 @@ def default_training(net, trainloader, num_epochs):
                 print('[%d, %5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / 2000))
                 running_loss = 0.0
+
+        return loss.item()
 
 def test_acc(valloader, classes, num_classes):
     correct = 0
@@ -220,6 +227,7 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 loss = 1
 training_epochs = 350
 num_epoch = 0
+num_batches = 47 # we have 3760 training, want 10% so 376 examples, 8 per batch so 
 losses = []
 accuracies = []
 saveTime = time.time()
@@ -247,8 +255,9 @@ while loss > 0.15 and num_epoch < training_epochs:
         #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
-    data_act, labels_act = get_active_batches(trainloader, net, 5, print_f)
+    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=True)
     loss = train(net, data_act, labels_act, print_f)
+    #loss = default_training(net, trainloader, 1)
     losses.append(loss)
     num_epoch += 1
 print('Finished Training')
@@ -286,4 +295,4 @@ np.save(class_totalTitle, class_total)
 np.save(class_percentageTitle, class_percentage)
 # ------------------------------------------------------------------------------------------------------------------
 
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
