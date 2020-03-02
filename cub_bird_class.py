@@ -30,14 +30,19 @@ def setup_database():
     data_dir = '../cub_birds_data/'
     dataSet = torchvision.datasets.ImageFolder(root=data_dir+'images', transform=transform)
 
-    num_train = int(len(dataSet) * .8)
-    num_val = len(dataSet) - num_train
+    num_train = int(len(dataSet) * .7)
+    num_val = int((len(dataSet) - num_train) / 2)
+    num_test = len(dataSet) - num_train - num_val
 
-    trainSet, valSet = torch.utils.data.random_split(dataSet, [int(num_train), int(num_val)])
+    trainSet, val_testSetTmp = torch.utils.data.random_split(dataSet, [int(num_train), int(num_val + num_test)])
+    valSet, testSet = torch.utils.data.random_split(val_testSetTmp, [int(num_val), int(num_test)])
+
     trainloader = torch.utils.data.DataLoader(dataSet, batch_size=8,
                                               shuffle=True, num_workers=2)
     valloader = torch.utils.data.DataLoader(valSet, batch_size=8,
                                               shuffle=True, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testSet, batch_size=8,
+                                             shuffle=True, num_workers=2)
 
     f = open(data_dir + "lists/classes.txt", "r")
     classes = []
@@ -48,7 +53,7 @@ def setup_database():
     print(type(trainSet))
     print(type(trainloader))
 
-    return (trainSet, trainloader, valloader, classes)
+    return (trainSet, trainloader, valloader, testloader, classes)
 
 # same uncertainty measure as seen in that medium post
 # uncertainty = most confident - least confident
@@ -152,15 +157,18 @@ def test_acc(valloader, classes, num_classes):
             c = (predicted == labels).squeeze()
 
             for i in range(len(labels)):
-                label = labels[i]
-                class_correct[label] += c[i].item()
+                if len(labels) == 1:
+                    #import pdb; pdb.set_trace()
+                    label = labels[i]
+                    class_correct[label] += c.item()
+                else:
+                    label = labels[i]
+                    class_correct[label] += c[i].item()
                 class_total[label] += 1
 
     accuracy = 100 * correct / total
     print('Accuracy of the network on the %d test images: %d %%' % (len(valloader),
         100 * correct / total))
-
-
 
     for i in range(num_classes):
         print('Accuracy of %5s : %4d %%' % (
@@ -171,8 +179,9 @@ def test_acc(valloader, classes, num_classes):
     return accuracy, class_correct, class_total, class_percentage
 
 
+# ==================================================================================================================
 print('Main Function running...')
-trainSet, trainloader, valloader, classes = setup_database()
+trainSet, trainloader, valloader, testloader, classes = setup_database()
 
 # Network Setup ----------------------------------------------------------------------------------------------------
 net = models.resnet18()
@@ -192,9 +201,11 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
 
 loss = 1
-training_epochs = 1
+training_epochs = 350
 num_epoch = 0
 losses = []
+accuracies = []
+saveTime = time.time()
 
 # let's train our model --------------------------------------------------------------------------------------------
 while loss > 0.2 and num_epoch < training_epochs:
@@ -202,6 +213,22 @@ while loss > 0.2 and num_epoch < training_epochs:
     if num_epoch % 20 == 0:
         print('Num_epoch: ', num_epoch)
         print_f = True
+
+        # Test on validation set
+        accuracy, class_correct, class_total, class_percentage = test_acc(valloader, classes, num_classes)
+        accuracies.append(accuracy)
+        class_correct = np.asarray(class_correct)
+        class_total = np.asarray(class_total)
+        class_percentage = np.asarray(class_percentage)
+
+        class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
+        class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
+        class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
+
+        np.save(class_correctTitle, class_correct)
+        np.save(class_totalTitle, class_total)
+        np.save(class_percentageTitle, class_percentage)
+
     data_act, labels_act = get_active_batches(trainloader, net, 5, print_f)
     loss = train(net, data_act, labels_act, print_f)
     losses.append(loss)
@@ -211,26 +238,29 @@ print('Epochs:', num_epoch)
 # ------------------------------------------------------------------------------------------------------------------
 
 # Save our Data ----------------------------------------------------------------------------------------------------
-saveTime = time.time()
 # save our neural net
 PATH = './cub_birds_net_' + str(saveTime) + '.pth'
 torch.save(net.state_dict(), PATH)
 
-# save our losses
+# save our losses and accuracies
 losses = np.asarray(losses)
 lossesTitle = 'losses_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
 np.save(lossesTitle, losses)
+
+accuracies = np.asarray(accuracies)
+accuraciesTitle = 'accurcies_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
+np.save(accuraciesTitle, accuracies)
 # ------------------------------------------------------------------------------------------------------------------
 
 # Get our test accuracy --------------------------------------------------------------------------------------------
-accuracy, class_correct, class_total, class_percentage = test_acc(valloader, classes, num_classes)
+accuracy, class_correct, class_total, class_percentage = test_acc(testloader, classes, num_classes)
 class_correct = np.asarray(class_correct)
 class_total = np.asarray(class_total)
 class_percentage = np.asarray(class_percentage)
 
-class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
-class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
-class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
+class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearnTest_' + str(saveTime)
+class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearnTest_' + str(saveTime)
+class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_activeLearnTest_' + str(saveTime)
 
 np.save(class_correctTitle, class_correct)
 np.save(class_totalTitle, class_total)
