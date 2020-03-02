@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_classes = 10
+num_classes = 3
 
 # functions to show an image
 def imshow(img):
@@ -93,13 +93,16 @@ def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=Fa
                 max_batch += max(out)
                 min_batch += min(out)
 
+            confidence = max_batch - min_batch
+
             if len(act_dict.keys()) < num_batches:
-                act_dict[count_key] = [max_batch - min_batch, inputs, labels]
+                act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
                 for key in act_dict:
-                    if act_dict[key][0] > max_batch - min_batch:
-                        act_dict[key] = [max_batch - min_batch, inputs, labels]
+                    if act_dict[key][0] > confidence:
+                        act_dict[key] = [confidence, inputs, labels]
+                        break 
         else:
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [i, inputs, labels]
@@ -221,7 +224,7 @@ torch.cuda.empty_cache() # for emptying out CUDA cache
 print('Cuda device:', device)
 net.to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
 
 loss = 1
