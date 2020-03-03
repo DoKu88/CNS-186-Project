@@ -9,6 +9,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import time
+import sys
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 num_classes = 10
@@ -41,54 +42,6 @@ def setup_database():
           #transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))
           ])
 
-    '''
-    data_dir = "/home/memo/Documents/senior/Winter/CNS_186/vision_project/CUB_200_2011/CUB_200_2011"
-
-    dataSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_aug1', transform=transform_train)
-    valSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_val', transform=transform_val_test)
-    testSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_test', transform=transform_val_test)
-
-    trainloader = torch.utils.data.DataLoader(dataSet, batch_size=8,
-                                              shuffle=True, num_workers=2)
-    valloader = torch.utils.data.DataLoader(valSet, batch_size=8,
-                                              shuffle=True, num_workers=2)
-    testloader = torch.utils.data.DataLoader(testSet, batch_size=8,
-                                             shuffle=True, num_workers=2)
-
-    classes = []
-    f = open(data_dir + "/classes.txt", "r")
-    classes = []
-    counter = 1
-    for x in f:
-      classes.append(x[(len(str(counter)) +1):-1])
-      counter += 1
-    f.close() '''
-
-    """
-    trainSet = torchvision.datasets.MNIST(root='./data', train=True,
-                                        download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainSet, batch_size=28,
-                                              shuffle=True, num_workers=2)
-
-    testSet = torchvision.datasets.MNIST(root='./data', train=False,
-                                           download=True, transform=transform_train)
-
-    testSet, valSet = torch.utils.data.random_split(testSet, [len(testSet) - int(len(testSet) * .8), int(len(testSet) * .8)])
-
-    testloader = torch.utils.data.DataLoader(testSet, batch_size=28,
-                                         shuffle=False, num_workers=2)
-
-    valloader = torch.utils.data.DataLoader(testSet, batch_size=28,
-                                          shuffle=False, num_workers=2)
-
-
-    print(len(trainSet))
-    print(len(valSet))
-    print(len(testSet))
-    print('trainloader length: ', len(trainloader.dataset))
-    print('valloader length: ', len(valloader.dataset))
-    print('testloader length: ', len(testloader.dataset)) """
-
     # Define a transform to normalize the data
     transform = transforms.Compose([transforms.ToTensor(),
                                   transforms.Normalize((0.5,), (0.5,)),
@@ -97,11 +50,17 @@ def setup_database():
     # Download and load the training data
     trainSet = torchvision.datasets.MNIST('./data', download=True, train=True, transform=transform)
     valset = torchvision.datasets.MNIST('./data', download=True, train=False, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainSet, batch_size=64, shuffle=True, num_workers=2)
-    valloader = torch.utils.data.DataLoader(valset, batch_size=64, shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainSet, batch_size=128, shuffle=True, num_workers=2)
+    valloader = torch.utils.data.DataLoader(valset, batch_size=128, shuffle=True, num_workers=2)
     testloader = valloader
 
     classes = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+
+    print(len(trainSet))
+    print(len(valset))
+    print('trainloader length: ', len(trainloader.dataset))
+    print('valloader length: ', len(valloader.dataset))
+    print('testloader length: ', len(testloader.dataset))
 
     return (trainSet, trainloader, valloader, testloader, classes)
 
@@ -110,7 +69,7 @@ def setup_database():
 # we want to put the smallest uncertainties in our training
 # because that means that that sample is not well defined
 
-def certainty_cal(batch):
+def largest_margin(batch):
     max_batch = 0
     min_batch = 0
     for out in batch:
@@ -134,11 +93,7 @@ def smallest_margin(batch):
     return confidence
 
 
-def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=False):
-    flag = True
-    #data_active = None
-    #labels_active = None
-    #uncertain_ratio = None
+def get_active_batches(trainloader, net, num_batches=1, print_f=False, sampling):
     act_dict = {}
     count_key = 0
 
@@ -150,24 +105,36 @@ def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=Fa
         outputs_cpu = outputs.cpu()
         outputs_np = outputs_cpu.detach().numpy()
 
-        if not random:
+        if sampling == 'smallest_margin':
             confidence = smallest_margin(outputs_np)
-
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
-
                 max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
                 max_key = list(act_dict.keys())[max_idx]
 
                 if act_dict[max_key][0] > confidence:
                     act_dict[max_key] = [confidence, inputs, labels]
-
-        else:
+        elif sampling == 'random':
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [i, inputs, labels]
                 count_key += 1
+        elif sampling == 'largest_margin':
+            confidence = largest_margin(outputs_np)
+            if len(act_dict.keys()) < num_batches:
+                act_dict[count_key] = [confidence, inputs, labels]
+                count_key += 1
+            else:
+                max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
+                max_key = list(act_dict.keys())[max_idx]
+
+                if act_dict[max_key][0] > confidence:
+                    act_dict[max_key] = [confidence, inputs, labels]
+        else:
+            print('Sampling Type in get_active_batches not given')
+            sys.exit(0)
+
 
     if print_f:
         print('smallest confidences:', [act_dict[key][0] for key in act_dict])
@@ -261,7 +228,6 @@ def test_acc(valloader, classes, num_classes):
             print('Accuracy of %5s : %4d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
             class_percentage.append(100 * class_correct[i] / class_total[i])
 
-
     class_percentage = [class_correct[i] / class_total[i] for i in range(num_classes)]
 
     return accuracy, class_correct, class_total, class_percentage
@@ -290,27 +256,14 @@ class Net(nn.Module):
         output = F.softmax(x, dim=1)
         return output
 
-
-
-#print(net)
 # ==================================================================================================================
 print('Main Function running...')
+
 trainSet, trainloader, valloader, testloader, classes = setup_database()
 
 # Network Setup ----------------------------------------------------------------------------------------------------
-#net = SimpleNet() # smaller net
-#net = MNIST_Model()
 net = Net()
-
-'''
-net = models.resnet18(pretrained=True)
-#net.fc = torch.nn.Linear(512, 200)
-#net.fc = torch.nn.Linear(512, 10) # trying smaller dataset
-net.fc = torch.nn.Linear(512, num_classes)
-net = nn.Sequential(
-    net,
-    nn.Softmax(1)
-) '''
+print(net)
 
 torch.cuda.empty_cache() # for emptying out CUDA cache
 print('Cuda device:', device)
@@ -318,11 +271,11 @@ net.to(device)
 criterion = nn.NLLLoss() #nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
-
+sampling = 'smallest_margin' # 'random', 'largest_margin'
 loss = 1
 training_epochs = 350
 num_epoch = 0
-num_batches = 47 # we have 3760 training, want 10% so 376 examples, 8 per batch so 47 * 8 = 376
+num_batches = 25 # 3200 training examples from like 64 batch size
 losses = []
 accuracies = []
 saveTime = time.time()
@@ -339,21 +292,14 @@ while num_epoch < training_epochs:
         accuracy, class_correct, class_total, class_percentage = test_acc(valloader, classes, num_classes)
         accuracies.append(accuracy)
         print('Class Totals:', class_total)
-        #class_correct = np.asarray(class_correct)
-        #class_total = np.asarray(class_total)
+
         class_percentage = np.asarray(class_percentage)
-
-        #class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
-        #class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
-        class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_activeLearnVal_' + str(saveTime)
-
-        #np.save(class_correctTitle, class_correct)
-        #np.save(class_totalTitle, class_total)
+        class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_' + sampling + '_Train_' + str(saveTime)
         np.save(class_percentageTitle, class_percentage)
 
-    #data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, True)
-    #loss = train(net, data_act, labels_act, print_f)
-    loss = default_training(net, trainloader, 1)
+    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, sampling)
+    loss = train(net, data_act, labels_act, print_f)
+    #loss = default_training(net, trainloader, 1) # for just running on everything
 
     losses.append(loss)
     num_epoch += 1
@@ -363,33 +309,24 @@ print('Epochs:', num_epoch)
 
 # Save our Data ----------------------------------------------------------------------------------------------------
 # save our neural net
-PATH = './cub_birds_net_' + str(saveTime) + '.pth'
+PATH = './cub_birds_net_random' + str(saveTime) + '.pth'
 torch.save(net.state_dict(), PATH)
 
 # save our losses and accuracies -----------------------------------------------------------------------------------
 losses = np.asarray(losses)
-lossesTitle = 'losses_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
+lossesTitle = 'losses_' + str(num_epoch) + '_' + sampling + '_Train_' + str(saveTime)
 np.save(lossesTitle, losses)
 
 accuracies = np.asarray(accuracies)
-accuraciesTitle = 'accuracies_' + str(num_epoch) + '_activeLearn_' + str(saveTime)
+accuraciesTitle = 'accuracies_' + str(num_epoch) + '_' + sampling +'_Train_' + str(saveTime)
 np.save(accuraciesTitle, accuracies)
 # ------------------------------------------------------------------------------------------------------------------
 
 # Get our test accuracy --------------------------------------------------------------------------------------------
 print('Final Test on Test Set ==================================================')
 accuracy, class_correct, class_total, class_percentage = test_acc(testloader, classes, num_classes)
-class_correct = np.asarray(class_correct)
-class_total = np.asarray(class_total)
+
 class_percentage = np.asarray(class_percentage)
-
-class_correctTitle = 'class_correct_' + str(num_epoch) + '_activeLearnTest_' + str(saveTime)
-class_totalTitle  = 'class_total_' + str(num_epoch) + '_activeLearnTest_' + str(saveTime)
-class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_activeLearnTest_' + str(saveTime)
-
-np.save(class_correctTitle, class_correct)
-np.save(class_totalTitle, class_total)
+class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_' + sampling +'_Test_' + str(saveTime)
 np.save(class_percentageTitle, class_percentage)
 # ------------------------------------------------------------------------------------------------------------------
-
-#import pdb; pdb.set_trace()
