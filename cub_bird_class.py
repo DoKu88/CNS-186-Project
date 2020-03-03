@@ -23,16 +23,16 @@ def imshow(img):
 def setup_database():
     # Set up dataset and classes
     transform_train = transforms.Compose(
-        [transforms.Resize((400,400), interpolation=Image.NEAREST),
+        [transforms.Resize((224,224), interpolation=Image.NEAREST),
          transforms.RandomHorizontalFlip(),
          transforms.RandomRotation(15),
          transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+         transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))])
 
     transform_val_test = transforms.Compose(
          [transforms.Resize((400,400), interpolation=Image.NEAREST),
           transforms.ToTensor(),
-          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+          transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))])
 
     data_dir = "/home/memo/Documents/senior/Winter/CNS_186/vision_project/CUB_200_2011/CUB_200_2011"
 
@@ -70,6 +70,30 @@ def setup_database():
 # we want to put the smallest uncertainties in our training
 # because that means that that sample is not well defined
 
+def certainty_cal(batch):
+    max_batch = 0
+    min_batch = 0
+    for out in batch:
+        max_batch += max(out)
+        min_batch += min(out)
+
+    confidence = max_batch - min_batch
+
+    return confidence
+
+def smallest_margin(batch):
+    max_batch = 0
+    max_batch_sec = 0
+    for out in batch:
+        out1 = out.sort()
+        max_batch += out1[-1]
+        max_batch_sec += out1[-2]
+
+    confidence = max_batch - max_batch_sec
+
+    return confidence
+
+
 def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=False):
     flag = True
     #data_active = None
@@ -87,13 +111,7 @@ def get_active_batches(trainloader, net, num_batches=1, print_f=False, random=Fa
         outputs_np = outputs_cpu.detach().numpy()
 
         if not random:
-            max_batch = 0
-            min_batch = 0
-            for out in outputs_np:
-                max_batch += max(out)
-                min_batch += min(out)
-
-            confidence = max_batch - min_batch
+            confidence = smallest_margin(outputs_np)
 
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [confidence, inputs, labels]
@@ -214,7 +232,7 @@ print('Main Function running...')
 trainSet, trainloader, valloader, testloader, classes = setup_database()
 
 # Network Setup ----------------------------------------------------------------------------------------------------
-net = models.resnet18()
+net = models.resnet18(pretrained=True)
 #net.fc = torch.nn.Linear(512, 200)
 #net.fc = torch.nn.Linear(512, 10) # trying smaller dataset
 net.fc = torch.nn.Linear(512, num_classes)
@@ -261,9 +279,9 @@ while loss > 0.15 and num_epoch < training_epochs:
         #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
-    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=False)
-    loss = train(net, data_act, labels_act, print_f)
-    #loss = default_training(net, trainloader, 1)
+    #data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=False)
+    #loss = train(net, data_act, labels_act, print_f)
+    loss = default_training(net, trainloader, 1)
     losses.append(loss)
     num_epoch += 1
 print('Finished Training')
