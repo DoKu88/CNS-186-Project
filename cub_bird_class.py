@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_classes = 3
+num_classes = 10
 
 # functions to show an image
 def imshow(img):
@@ -24,17 +24,24 @@ def setup_database():
     # Set up dataset and classes
     transform_train = transforms.Compose(
         [#transforms.Resize((224,224), interpolation=Image.NEAREST),
-         transforms.Resize((84,84), interpolation=Image.NEAREST),
-         transforms.RandomHorizontalFlip(),
-         transforms.RandomRotation(15),
+         #transforms.Resize((32,32), interpolation=Image.NEAREST),
+         #transforms.Resize((84,84), interpolation=Image.NEAREST),
+
+         #transforms.RandomHorizontalFlip(),
+         #transforms.RandomRotation(15),
          transforms.ToTensor(),
-         transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))])
+         transforms.Normalize((0.5,), (0.5,)),
+         #transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))
+         ])
+
 
     transform_val_test = transforms.Compose(
          [transforms.Resize((400,400), interpolation=Image.NEAREST),
           transforms.ToTensor(),
-          transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))])
+          #transforms.Normalize((0.485, 0.485, 0.485), (0.229, 0.224, 0.225))
+          ])
 
+    '''
     data_dir = "/home/memo/Documents/senior/Winter/CNS_186/vision_project/CUB_200_2011/CUB_200_2011"
 
     dataSet = torchvision.datasets.ImageFolder(root=data_dir+'/images_aug1', transform=transform_train)
@@ -55,16 +62,48 @@ def setup_database():
     for x in f:
       classes.append(x[(len(str(counter)) +1):-1])
       counter += 1
-    f.close()
+    f.close() '''
 
-    print(len(dataSet))
+    """
+    trainSet = torchvision.datasets.MNIST(root='./data', train=True,
+                                        download=True, transform=transform_train)
+    trainloader = torch.utils.data.DataLoader(trainSet, batch_size=28,
+                                              shuffle=True, num_workers=2)
+
+    testSet = torchvision.datasets.MNIST(root='./data', train=False,
+                                           download=True, transform=transform_train)
+
+    testSet, valSet = torch.utils.data.random_split(testSet, [len(testSet) - int(len(testSet) * .8), int(len(testSet) * .8)])
+
+    testloader = torch.utils.data.DataLoader(testSet, batch_size=28,
+                                         shuffle=False, num_workers=2)
+
+    valloader = torch.utils.data.DataLoader(testSet, batch_size=28,
+                                          shuffle=False, num_workers=2)
+
+
+    print(len(trainSet))
     print(len(valSet))
     print(len(testSet))
     print('trainloader length: ', len(trainloader.dataset))
     print('valloader length: ', len(valloader.dataset))
-    print('testloader length: ', len(testloader.dataset))
+    print('testloader length: ', len(testloader.dataset)) """
 
-    return (dataSet, trainloader, valloader, testloader, classes)
+    # Define a transform to normalize the data
+    transform = transforms.Compose([transforms.ToTensor(),
+                                  transforms.Normalize((0.5,), (0.5,)),
+                                  ])
+
+    # Download and load the training data
+    trainSet = torchvision.datasets.MNIST('./data', download=True, train=True, transform=transform)
+    valset = torchvision.datasets.MNIST('./data', download=True, train=False, transform=transform)
+    trainloader = torch.utils.data.DataLoader(trainSet, batch_size=64, shuffle=True, num_workers=2)
+    valloader = torch.utils.data.DataLoader(valset, batch_size=64, shuffle=True, num_workers=2)
+    testloader = valloader
+
+    classes = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+
+    return (trainSet, trainloader, valloader, testloader, classes)
 
 # same uncertainty measure as seen in that medium post
 # uncertainty = most confident - least confident
@@ -227,37 +266,43 @@ def test_acc(valloader, classes, num_classes):
 
     return accuracy, class_correct, class_total, class_percentage
 
-class NetSimple(nn.Module):
+class Net(nn.Module):
     def __init__(self):
-        super(NetSimple, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        #self.adptPool = nn.AdaptiveAvgPool1d(16*5*5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        #self.fc1 = nn.Linear(400, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, num_classes)
-        self.soft = nn.Softmax(1)
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout2d(0.25)
+        self.dropout2 = nn.Dropout2d(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        #x = x.view(-1, 400)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        x = self.soft(x)
-        return x
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        output = F.softmax(x, dim=1)
+        return output
 
+
+
+#print(net)
 # ==================================================================================================================
 print('Main Function running...')
 trainSet, trainloader, valloader, testloader, classes = setup_database()
 
 # Network Setup ----------------------------------------------------------------------------------------------------
-#net = NetSimple() # smaller net
+#net = SimpleNet() # smaller net
+#net = MNIST_Model()
+net = Net()
 
+'''
 net = models.resnet18(pretrained=True)
 #net.fc = torch.nn.Linear(512, 200)
 #net.fc = torch.nn.Linear(512, 10) # trying smaller dataset
@@ -265,12 +310,12 @@ net.fc = torch.nn.Linear(512, num_classes)
 net = nn.Sequential(
     net,
     nn.Softmax(1)
-)
+) '''
 
 torch.cuda.empty_cache() # for emptying out CUDA cache
 print('Cuda device:', device)
 net.to(device)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.NLLLoss() #nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
 
@@ -288,6 +333,7 @@ while num_epoch < training_epochs:
     if num_epoch % 20 == 0:
         print('Num_epoch: ', num_epoch)
         print_f = True
+        print('loss:', loss)
 
         # Test on validation set
         accuracy, class_correct, class_total, class_percentage = test_acc(valloader, classes, num_classes)
@@ -305,9 +351,10 @@ while num_epoch < training_epochs:
         #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
-    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, True)
-    loss = train(net, data_act, labels_act, print_f)
-    #loss = default_training(net, trainloader, 1)
+    #data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, True)
+    #loss = train(net, data_act, labels_act, print_f)
+    loss = default_training(net, trainloader, 1)
+
     losses.append(loss)
     num_epoch += 1
 print('Finished Training')
