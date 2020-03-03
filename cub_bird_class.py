@@ -85,7 +85,7 @@ def smallest_margin(batch):
     max_batch = 0
     max_batch_sec = 0
     for out in batch:
-        out1 = out.sort()
+        out1 = np.sort(out)
         max_batch += out1[-1]
         max_batch_sec += out1[-2]
 
@@ -279,9 +279,9 @@ while loss > 0.15 and num_epoch < training_epochs:
         #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
-    #data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=False)
-    #loss = train(net, data_act, labels_act, print_f)
-    loss = default_training(net, trainloader, 1)
+    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=False)
+    loss = train(net, data_act, labels_act, print_f)
+    #loss = default_training(net, trainloader, 1)
     losses.append(loss)
     num_epoch += 1
 print('Finished Training')
