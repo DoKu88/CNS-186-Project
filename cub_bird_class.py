@@ -123,12 +123,15 @@ def get_active_batches(trainloader, net, sampling, num_batches=1, print_f=False)
         outputs_cpu = outputs.cpu()
         outputs_np = outputs_cpu.detach().numpy()
 
+        # get the smallest, smallest margin
         if sampling == 'smallest_margin':
             confidence = smallest_margin(outputs_np)
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
+                # get maximum so that if we have something smaller than that
+                # the maximum goes away, for smallest only
                 max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
                 max_key = list(act_dict.keys())[max_idx]
 
@@ -140,46 +143,54 @@ def get_active_batches(trainloader, net, sampling, num_batches=1, print_f=False)
                 act_dict[count_key] = [i, inputs, labels]
                 count_key += 1
 
+        # get the smallest, largest margin
         elif sampling == 'largest_margin':
             confidence = largest_margin(outputs_np)
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
+                # get maximum so that if we have something smaller than that
+                # the maximum goes away, for smallest only
                 max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
                 max_key = list(act_dict.keys())[max_idx]
 
                 if act_dict[max_key][0] > confidence:
                     act_dict[max_key] = [confidence, inputs, labels]
 
+        # get the largest, least confident
         elif sampling == 'least_confident':
             confidence = least_confident(outputs_np)
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
-                max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
-                max_key = list(act_dict.keys())[max_idx]
+                # get minimum so that if we have something larger than that
+                # the minimum goes away, for largest only
+                min_idx = list(act_dict.keys()).index(min(list(act_dict.keys())))
+                min_key = list(act_dict.keys())[min_idx]
 
-                if act_dict[max_key][0] > confidence:
-                    act_dict[max_key] = [confidence, inputs, labels]
+                if act_dict[min_key][0] < confidence:
+                    act_dict[min_key] = [confidence, inputs, labels]
 
+        # get the largest entropy
         elif sampling == 'entropy':
             confidence = entropy(outputs_np)
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [confidence, inputs, labels]
                 count_key += 1
             else:
-                max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
-                max_key = list(act_dict.keys())[max_idx]
+                # get minimum so that if we have something larger than that
+                # the minimum goes away, for largest only
+                min_idx = list(act_dict.keys()).index(min(list(act_dict.keys())))
+                min_key = list(act_dict.keys())[min_idx]
 
-                if act_dict[max_key][0] > confidence:
-                    act_dict[max_key] = [confidence, inputs, labels]
+                if act_dict[min_key][0] < confidence:
+                    act_dict[min_key] = [confidence, inputs, labels]
 
         else:
             print('Sampling Type in get_active_batches not given')
             sys.exit(0)
-
 
     if print_f:
         print('smallest confidences:', [act_dict[key][0] for key in act_dict])
@@ -316,7 +327,7 @@ net.to(device)
 criterion = nn.NLLLoss() #nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
-sampling = 'least_confident' # 'random', 'largest_margin', 'smallest_margin', 'least_confident', 'entropy'
+sampling = 'entropy' # 'random', 'largest_margin', 'smallest_margin', 'least_confident', 'entropy'
 print('Sampling being used for active learning:', sampling)
 loss = 1
 training_epochs = 350

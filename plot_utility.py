@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-uncertainties = ['random', 'largest_margin', 'smallest_margin', 'least_confident'] #, 'entropy']
+uncertainties = ['random', 'largest_margin', 'smallest_margin', 'least_confident', 'entropy']
 
 data_dir = '/home/memo/Documents/senior/Winter/CNS_186/vision_project/CNS-186-Project/MNIST_trials'
 
@@ -12,7 +12,7 @@ def avg_plots(uncertainty):
     loss_data = []
     folder_dir = data_dir + '/' + uncertainty + '_MNIST_'
 
-    for i in range(1):
+    for i in range(3):
         fold = folder_dir + str(i)
         files = os.listdir(fold)
         accuracy_file = ''
@@ -52,7 +52,7 @@ for i in range(len(uncertainties)):
 
     plt.plot(x_epochs, avg_acc, label=uncertainties[i])
 
-plt.title('Compare Each Uncertainty Measure with Accuracy')
+plt.title('Compare Each Uncertainty Measure with Accuracy, Averaged Over 3 Runs')
 plt.xlabel('Number of Epochs')
 plt.ylabel('Accuracy on Test Set')
 plt.legend()
