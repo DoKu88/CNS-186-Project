@@ -93,7 +93,7 @@ def smallest_margin(batch):
     return confidence
 
 
-def get_active_batches(trainloader, net, num_batches=1, print_f=False, sampling):
+def get_active_batches(trainloader, net, sampling, num_batches=1, print_f=False):
     act_dict = {}
     count_key = 0
 
@@ -271,7 +271,8 @@ net.to(device)
 criterion = nn.NLLLoss() #nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
-sampling = 'smallest_margin' # 'random', 'largest_margin'
+sampling = 'largest_margin' # 'random', 'largest_margin', 'smallest_margin'
+print('Sampling being used for active learning:', sampling)
 loss = 1
 training_epochs = 350
 num_epoch = 0
@@ -297,7 +298,7 @@ while num_epoch < training_epochs:
         class_percentageTitle  = 'class_percentage_' + str(num_epoch) + '_' + sampling + '_Train_' + str(saveTime)
         np.save(class_percentageTitle, class_percentage)
 
-    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, sampling)
+    data_act, labels_act = get_active_batches(trainloader, net, sampling, num_batches, print_f)
     loss = train(net, data_act, labels_act, print_f)
     #loss = default_training(net, trainloader, 1) # for just running on everything
 
