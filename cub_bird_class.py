@@ -23,7 +23,8 @@ def imshow(img):
 def setup_database():
     # Set up dataset and classes
     transform_train = transforms.Compose(
-        [transforms.Resize((224,224), interpolation=Image.NEAREST),
+        [#transforms.Resize((224,224), interpolation=Image.NEAREST),
+         transforms.Resize((84,84), interpolation=Image.NEAREST),
          transforms.RandomHorizontalFlip(),
          transforms.RandomRotation(15),
          transforms.ToTensor(),
@@ -226,12 +227,37 @@ def test_acc(valloader, classes, num_classes):
 
     return accuracy, class_correct, class_total, class_percentage
 
+class NetSimple(nn.Module):
+    def __init__(self):
+        super(NetSimple, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        #self.adptPool = nn.AdaptiveAvgPool1d(16*5*5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        #self.fc1 = nn.Linear(400, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, num_classes)
+        self.soft = nn.Softmax(1)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        #x = x.view(-1, 400)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        x = self.soft(x)
+        return x
 
 # ==================================================================================================================
 print('Main Function running...')
 trainSet, trainloader, valloader, testloader, classes = setup_database()
 
 # Network Setup ----------------------------------------------------------------------------------------------------
+#net = NetSimple() # smaller net
+
 net = models.resnet18(pretrained=True)
 #net.fc = torch.nn.Linear(512, 200)
 #net.fc = torch.nn.Linear(512, 10) # trying smaller dataset
@@ -279,7 +305,7 @@ while num_epoch < training_epochs:
         #np.save(class_totalTitle, class_total)
         np.save(class_percentageTitle, class_percentage)
 
-    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, random=False)
+    data_act, labels_act = get_active_batches(trainloader, net, num_batches, print_f, True)
     loss = train(net, data_act, labels_act, print_f)
     #loss = default_training(net, trainloader, 1)
     losses.append(loss)
