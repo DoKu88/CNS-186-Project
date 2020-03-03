@@ -257,7 +257,7 @@ accuracies = []
 saveTime = time.time()
 
 # let's train our model --------------------------------------------------------------------------------------------
-while loss > 0.15 and num_epoch < training_epochs:
+while num_epoch < training_epochs:
     print_f = False
     if num_epoch % 20 == 0:
         print('Num_epoch: ', num_epoch)
