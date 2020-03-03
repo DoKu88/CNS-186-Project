@@ -316,7 +316,7 @@ net.to(device)
 criterion = nn.NLLLoss() #nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
-sampling = 'largest_margin' # 'random', 'largest_margin', 'smallest_margin', 'least_confident', 'entropy'
+sampling = 'least_confident' # 'random', 'largest_margin', 'smallest_margin', 'least_confident', 'entropy'
 print('Sampling being used for active learning:', sampling)
 loss = 1
 training_epochs = 350
