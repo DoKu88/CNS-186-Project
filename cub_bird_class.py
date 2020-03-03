@@ -92,6 +92,24 @@ def smallest_margin(batch):
 
     return confidence
 
+def least_confident(batch):
+    least_confident_metric = 0
+    for out in batch:
+        max_out = max(out)
+        least_confident_metric += (1 - max_out)
+
+    return least_confident_metric
+
+def entropy(batch):
+    entropy = 0
+    for out in batch:
+        local_entropy = 0
+        for i in range(len(out)):
+            local_entropy += out[i] * np.log(out[i])
+        local_entropy *= -1
+        entropy += local_entropy
+
+    return entropy
 
 def get_active_batches(trainloader, net, sampling, num_batches=1, print_f=False):
     act_dict = {}
@@ -116,10 +134,12 @@ def get_active_batches(trainloader, net, sampling, num_batches=1, print_f=False)
 
                 if act_dict[max_key][0] > confidence:
                     act_dict[max_key] = [confidence, inputs, labels]
+
         elif sampling == 'random':
             if len(act_dict.keys()) < num_batches:
                 act_dict[count_key] = [i, inputs, labels]
                 count_key += 1
+
         elif sampling == 'largest_margin':
             confidence = largest_margin(outputs_np)
             if len(act_dict.keys()) < num_batches:
@@ -131,6 +151,31 @@ def get_active_batches(trainloader, net, sampling, num_batches=1, print_f=False)
 
                 if act_dict[max_key][0] > confidence:
                     act_dict[max_key] = [confidence, inputs, labels]
+
+        elif sampling == 'least_confident':
+            confidence = least_confident(outputs_np)
+            if len(act_dict.keys()) < num_batches:
+                act_dict[count_key] = [confidence, inputs, labels]
+                count_key += 1
+            else:
+                max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
+                max_key = list(act_dict.keys())[max_idx]
+
+                if act_dict[max_key][0] > confidence:
+                    act_dict[max_key] = [confidence, inputs, labels]
+
+        elif sampling == 'entropy':
+            confidence = entropy(outputs_np)
+            if len(act_dict.keys()) < num_batches:
+                act_dict[count_key] = [confidence, inputs, labels]
+                count_key += 1
+            else:
+                max_idx = list(act_dict.keys()).index(max(list(act_dict.keys())))
+                max_key = list(act_dict.keys())[max_idx]
+
+                if act_dict[max_key][0] > confidence:
+                    act_dict[max_key] = [confidence, inputs, labels]
+
         else:
             print('Sampling Type in get_active_batches not given')
             sys.exit(0)
@@ -271,7 +316,7 @@ net.to(device)
 criterion = nn.NLLLoss() #nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 # ------------------------------------------------------------------------------------------------------------------
-sampling = 'largest_margin' # 'random', 'largest_margin', 'smallest_margin'
+sampling = 'largest_margin' # 'random', 'largest_margin', 'smallest_margin', 'least_confident', 'entropy'
 print('Sampling being used for active learning:', sampling)
 loss = 1
 training_epochs = 350
