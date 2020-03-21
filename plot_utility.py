@@ -136,7 +136,7 @@ def generate_acc_loss_plots(acc = True):
 
     plt.title('Compare Each Uncertainty Measure with Accuracy \n Averaged Over 3 Runs')
     plt.xlabel('Number of Epochs')
-    plt.ylabel('Loss on Training Set')
+    plt.ylabel('Accuracy on Validation Set')
     plt.legend()
     plt.savefig('./plots/' + title)
     plt.show()
